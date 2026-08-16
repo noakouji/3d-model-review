@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>3D Model Review</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a1a; color: #e0e0e0; overflow: hidden; }
+  #container { position: relative; width: 100vw; height: 100vh; }
+  #canvas3d { width: 100%; height: 100%; display: block; }
+
+  /* トップバー */
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 56px; background: rgba(20, 20, 20, 0.92); backdrop-filter: blur(8px);
+    display: flex; align-items: center; padding: 0 14px; gap: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 100;
+  }
+  /* ブランド (左上タイトル) */
+  #brand { display: flex; flex-direction: column; padding-right: 6px; }
+  #brand-title { font-size: 15px; font-weight: 700; color: #5a9fd4; letter-spacing: 0.5px; line-height: 1; }
+  #brand-sub { font-size: 9px; color: #6b7280; margin-top: 2px; line-height: 1; }
+  .topbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+  .topbar-group { display: flex; align-items: center; gap: 4px; }
+  .topbar-label { font-size: 11px; color: #9ca3af; margin-right: 2px; }
+  .btn {
+    padding: 7px 14px; background: #2563eb; color: white; border: none; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .btn:hover { background: #1d4ed8; transform: translateY(-1px); }
+  .btn.secondary { background: #374151; }
+  .btn.secondary:hover { background: #4b5563; }
+  .btn.danger { background: #dc2626; }
+  .btn.danger:hover { background: #b91c1c; }
+  .btn.success { background: #16a34a; }
+  .btn.success:hover { background: #15803d; }
+  .btn.toggle { background: #4b5563; }
+  .btn.toggle.active { background: #2563eb; }
+
+  select.btn {
+    background: #374151; color: white; padding: 7px 12px; border: none;
+    border-radius: 6px; font-size: 13px; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3e%3cpath fill='white' d='M6 8L0 0h12z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat; background-position: right 8px center; padding-right: 26px;
+    min-width: 240px;
+  }
+  #file-name { font-size: 11px; color: #6b7280; margin-left: auto; font-family: 'SF Mono', monospace; padding: 4px 10px; background: rgba(0,0,0,0.3); border-radius: 4px; }
+
+  /* サイドパネル */
+  #sidebar {
+    position: absolute; top: 56px; right: 0; bottom: 0; width: 360px;
+    background: rgba(20, 20, 20, 0.92); backdrop-filter: blur(8px);
+    overflow-y: auto; padding: 16px; z-index: 50;
+    border-left: 1px solid rgba(255,255,255,0.1);
+  }
+  #sidebar h2 { font-size: 13px; color: #9ca3af; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  #sidebar h2 small { float: right; color: #6b7280; text-transform: none; letter-spacing: 0; font-weight: normal; }
+
+  .section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #2a2a2a; }
+  .section:last-child { border-bottom: none; }
+
+  .annotation-card {
+    background: #2a2a2a; border-radius: 8px; padding: 10px; margin-bottom: 6px;
+    border-left: 3px solid; position: relative;
+  }
+  .annotation-card .ann-id { font-weight: 700; font-size: 14px; }
+  .annotation-card .ann-coords { font-family: 'SF Mono', monospace; font-size: 11px; color: #9ca3af; margin: 4px 0; }
+  .annotation-card .ann-comment {
+    background: #1a1a1a; border: 1px solid #374151; border-radius: 4px;
+    padding: 5px 7px; font-size: 13px; color: #e0e0e0; width: 100%; resize: vertical;
+    min-height: 36px; font-family: inherit;
+  }
+  .annotation-card .ann-comment:focus { outline: none; border-color: #2563eb; }
+  .annotation-card .delete-btn {
+    position: absolute; top: 6px; right: 6px; background: transparent;
+    border: none; color: #6b7280; cursor: pointer; font-size: 14px; padding: 4px;
+  }
+  .annotation-card .delete-btn:hover { color: #dc2626; }
+
+  .ann-color-row { display: flex; gap: 5px; margin-top: 5px; }
+  .ann-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .ann-color.selected { border-color: white; }
+
+  /* メインプリセット (大きいボタン) */
+  .main-presets { background: #2a2a2a; padding: 12px; border-radius: 8px; }
+  .big-preset-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .big-preset-row:last-child { margin-bottom: 0; }
+  .big-preset {
+    background: #1a1a1a; border: 2px solid #4b5563; border-radius: 8px;
+    color: #e0e0e0; cursor: pointer; padding: 12px 8px; transition: all 0.1s;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-family: inherit;
+  }
+  .big-preset:hover { background: #2a2a2a; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .big-preset:active { transform: translateY(0); }
+  .big-preset.secondary { border-color: #4b5563; padding: 8px; }
+  .big-preset .big-preset-icon { font-size: 24px; }
+  .big-preset .big-preset-name { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
+  .big-preset .big-preset-jp { font-size: 10px; color: #9ca3af; }
+
+  /* ViewHelper コンテナ (右下) */
+  #view-cube-container {
+    position: absolute; right: 376px; bottom: 16px; width: 140px; height: 140px;
+    z-index: 60; pointer-events: auto;
+  }
+
+  /* NavCube コンテナ (左下、動的キューブ) */
+  #nav-cube-container {
+    position: absolute; left: 16px; bottom: 60px; width: 160px; height: 180px;
+    z-index: 60; pointer-events: auto;
+    background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(4px);
+    border-radius: 8px; padding: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  #nav-cube-label {
+    font-size: 11px; color: #9ca3af; margin-bottom: 4px;
+    text-align: center; font-weight: 500;
+  }
+  #nav-cube-container canvas { cursor: pointer; }
+
+  /* 操作モード切替 */
+  #control-mode-bar {
+    position: absolute; top: 64px; right: 376px; padding: 4px;
+    background: rgba(20, 20, 20, 0.85); border-radius: 6px; backdrop-filter: blur(4px);
+    z-index: 60; display: flex; gap: 4px;
+  }
+  #control-mode-bar .btn { font-size: 11px; padding: 4px 10px; }
+
+  /* スライダー */
+  .slider-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 6px;
+    font-size: 12px; color: #9ca3af;
+  }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-row input[type=number] {
+    width: 60px; background: #2a2a2a; border: 1px solid #374151; color: #e0e0e0;
+    padding: 3px 6px; border-radius: 4px; font-size: 12px;
+  }
+
+  /* 操作ガイド */
+  #help {
+    position: absolute; bottom: 12px; left: 192px; background: rgba(20, 20, 20, 0.85);
+    padding: 8px 12px; border-radius: 6px; font-size: 11px; color: #9ca3af;
+    backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1);
+    line-height: 1.6;
+  }
+  #help kbd { background: #374151; padding: 1px 5px; border-radius: 3px; color: #e0e0e0; font-size: 10px; margin: 0 2px; }
+
+  /* ステータスバー */
+  #status {
+    position: absolute; top: 64px; left: 12px; padding: 6px 10px;
+    background: rgba(20, 20, 20, 0.85); border-radius: 6px;
+    font-family: 'SF Mono', monospace; font-size: 11px; color: #9ca3af;
+  }
+
+  /* モード表示 */
+  #mode-indicator {
+    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    padding: 6px 14px; background: rgba(220, 38, 38, 0.9); border-radius: 6px;
+    font-size: 12px; font-weight: 600; color: white; display: none;
+  }
+  #mode-indicator.show { display: block; }
+
+  /* トースト */
+  #toast {
+    position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+    padding: 10px 18px; background: rgba(22, 163, 74, 0.95); border-radius: 6px;
+    font-size: 13px; color: white; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none; z-index: 200;
+  }
+  #toast.show { opacity: 1; }
+
+  #file-input { display: none; }
+  label.btn { display: inline-flex; }
+
+  /* ロード中スピナー */
+  #loading {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    color: #9ca3af; font-size: 14px; display: none;
+  }
+  #loading.show { display: block; }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="topbar">
+    <!-- 左上: ツール名・サブタイトル -->
+    <div id="brand">
+      <div id="brand-title">3D Model Review</div>
+      <div id="brand-sub"><span id="ws-title"></span></div>
+    </div>
+
+    <div class="topbar-divider"></div>
+
+    <!-- モデル選択 -->
+    <div class="topbar-group">
+      <label class="topbar-label">モデル:</label>
+      <select class="btn" id="model-select" title="STLモデルを選択">
+        <option value="">— 選択 —</option>
+      </select>
+      <label for="file-input" class="btn secondary" title="ローカルから別の STL ファイルを開く">📂</label>
+      <input type="file" id="file-input" accept=".stl">
+    </div>
+
+    <div class="topbar-divider"></div>
+
+    <!-- 表示トグル -->
+    <div class="topbar-group">
+      <button class="btn toggle" id="toggle-wireframe" title="ワイヤーフレーム表示">📐</button>
+      <button class="btn toggle" id="toggle-edges" title="エッジ強調">⚡</button>
+      <button class="btn toggle active" id="toggle-direction" title="FRONT/BACK ラベル">🧭</button>
+    </div>
+
+    <!-- ツール -->
+    <div class="topbar-group">
+      <button class="btn secondary" id="measure-btn" title="2点間距離測定 (mキー)">📏</button>
+      <button class="btn secondary" id="screenshot-btn" title="注釈付き PNG 保存">📸</button>
+    </div>
+
+    <div class="topbar-divider"></div>
+
+    <!-- アクション -->
+    <div class="topbar-group">
+      <button class="btn danger" id="clear-annotations" title="全注釈削除">🗑️</button>
+      <button class="btn success" id="export-json" title="ローカル + Claude 共有パスに自動保存">💾 Claude へ送る</button>
+    </div>
+
+    <span id="file-name">未読み込み</span>
+    <span id="file-mtime" style="font-size: 11px; color: #6b7280; font-family: 'SF Mono', monospace; padding: 4px 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">📅 --</span>
+  </div>
+
+  <canvas id="canvas3d"></canvas>
+
+  <div id="empty-state" style="display:none;position:absolute;inset:0;
+    align-items:center;justify-content:center;flex-direction:column;
+    color:#9aa4ad;font-size:14px;text-align:center;gap:8px;">
+    <div style="font-size:32px;">📭</div>
+    <div>このワークスペースにはまだモデルがありません</div>
+    <div style="font-size:12px;">Claude Code でモデルを生成すると自動で表示されます</div>
+  </div>
+
+  <div id="loading">⏳ STL 読み込み中...</div>
+
+  <!-- 右下: ViewHelper (Three.js 標準軸ガジェット) -->
+  <div id="view-cube-container"></div>
+
+  <!-- 左下: NavCube (動的な立方体、現在の向きを表示) -->
+  <div id="nav-cube-container">
+    <div id="nav-cube-label">📦 視点インジケーター</div>
+  </div>
+
+  <!-- 操作モード切替 -->
+  <div id="control-mode-bar">
+    <button class="btn toggle active" id="mode-trackpad" title="トラックパッド モード (推奨: macOS)">🖱️ トラックパッド</button>
+    <button class="btn toggle" id="mode-mouse" title="マウス モード">🖱️ マウス</button>
+  </div>
+
+  <div id="sidebar">
+    <!-- メインプリセット (大きく目立つ) -->
+    <div class="section main-presets">
+      <h2>📷 視点切替（よく使う）</h2>
+      <div class="big-preset-row">
+        <button class="big-preset" data-preset="left" style="border-color: #a855f7;">
+          <div class="big-preset-icon">⬅</div>
+          <div class="big-preset-name">LEFT</div>
+          <div class="big-preset-jp">左から</div>
+        </button>
+        <button class="big-preset" data-preset="right" style="border-color: #3b82f6;">
+          <div class="big-preset-icon">➡</div>
+          <div class="big-preset-name">RIGHT</div>
+          <div class="big-preset-jp">右から</div>
+        </button>
+      </div>
+      <div class="big-preset-row">
+        <button class="big-preset" data-preset="front" style="border-color: #22c55e;">
+          <div class="big-preset-icon">⬇</div>
+          <div class="big-preset-name">FRONT</div>
+          <div class="big-preset-jp">前から</div>
+        </button>
+        <button class="big-preset" data-preset="back" style="border-color: #dc2626;">
+          <div class="big-preset-icon">⬆</div>
+          <div class="big-preset-name">BACK</div>
+          <div class="big-preset-jp">後ろから</div>
+        </button>
+      </div>
+      <div class="big-preset-row">
+        <button class="big-preset secondary" data-preset="top">
+          <div class="big-preset-icon">⤴</div>
+          <div class="big-preset-name">TOP 上</div>
+        </button>
+        <button class="big-preset secondary" data-preset="iso">
+          <div class="big-preset-icon">◰</div>
+          <div class="big-preset-name">ISO 全体</div>
+        </button>
+      </div>
+      <p style="font-size: 11px; color: #6b7280; margin-top: 6px; text-align: center;">
+        ⌨️ <kbd style="font-size:10px">1-9</kbd> でキーボード切替
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>📌 アノテーション <small><span id="ann-count">0</span> 個</small></h2>
+      <div id="annotation-list"></div>
+      <p style="font-size: 11px; color: #6b7280; margin-top: 10px;">
+        💡 <strong>右クリック</strong>でその点に番号付きマーカー配置<br>
+        💡 <strong>shift+右クリック</strong>で最寄り注釈削除
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>📏 距離測定 <small><span id="meas-count">0</span> 個</small></h2>
+      <div id="measurement-list"></div>
+      <p style="font-size: 11px; color: #6b7280; margin-top: 6px;">
+        💡 📏 ボタン or <kbd style="font-size:10px">m</kbd> キーで測定モード ON<br>
+        💡 2点を左クリックで距離 mm 表示
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>🤖 Claude 連携</h2>
+      <p style="font-size: 12px; color: #9ca3af; line-height: 1.5;">
+        💾 <strong>「Claude へ送る」</strong>を押すと注釈を保存:<br>
+        　1. ブラウザでダウンロード（バックアップ）<br>
+        　2. サーバー経由で Claude Code に共有<br>
+        <br>
+        Claude Code で <strong>「注釈読んで」</strong> と言うだけで、座標 + コメントを正確に理解できる。
+      </p>
+      <div id="claude-status" style="margin-top: 8px; padding: 8px; background: #2a2a2a; border-radius: 4px; font-size: 11px; color: #9ca3af;">
+        <span id="claude-status-text">待機中...</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="status">座標: -- / -- / --</div>
+  <div id="mode-indicator"></div>
+  <div id="toast"></div>
+
+  <div id="help">
+    <div style="font-weight: 700; color: #5a9fd4; margin-bottom: 6px; font-size: 12px;">3D Model Review - 使い方</div>
+    <div style="margin-bottom: 6px; color: #c9d1d9;">3D モデルに <strong>右クリックで注釈追加</strong> → <kbd>💾 Claude へ送る</kbd> → Claude Code で <strong>「注釈読んで」</strong> と言うだけで対応</div>
+    <strong>🖱️ 操作</strong>: <kbd>左ドラッグ</kbd>=回転(無限) / <kbd>中</kbd>=パン / <kbd>ピンチ</kbd>=ズーム<br>
+    <strong>📌 注釈</strong>: <kbd>右クリック</kbd>=追加 / <kbd>shift+右</kbd>=削除 / <kbd>ダブルクリック</kbd>=回転中心移動<br>
+    <strong>⌨️ </strong>: <kbd>1-9</kbd>視点 / <kbd>m</kbd>測定 / <kbd>r</kbd>中心リセット / <kbd>⌘S</kbd>保存
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/three.module.js",
+    "three/addons/": "/vendor/three/addons/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { ViewHelper } from 'three/addons/helpers/ViewHelper.js';
+
+// ========== 初期化 ==========
+const canvas = document.getElementById('canvas3d');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a1a);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 5000);
+camera.position.set(150, 150, 150);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+// ライト (4ライト構成: flowful-ai/cad-skill 方式)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+function addDirLight(x, y, z, intensity, castShadow = false) {
+  const l = new THREE.DirectionalLight(0xffffff, intensity);
+  l.position.set(x, y, z);
+  l.castShadow = castShadow;
+  scene.add(l);
+}
+addDirLight(100, 200, 100, 0.7, true);
+addDirLight(-100, 100, 100, 0.4);
+addDirLight(0, -100, 50, 0.3);  // 下からも軽く
+addDirLight(0, 0, -100, 0.2);   // 背面
+
+// グリッド
+const grid = new THREE.GridHelper(300, 30, 0x444444, 0x2a2a2a);
+grid.rotation.x = Math.PI / 2;
+scene.add(grid);
+
+// 軸ヘルパー
+const axes = new THREE.AxesHelper(80);
+scene.add(axes);
+
+// 軸ラベル (X/Y/Z は小さく、原点近辺のみ)
+function addAxisLabel(text, position, color) {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 48px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 32, 32);
+  const tex = new THREE.CanvasTexture(c);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  spr.scale.set(8, 8, 1);
+  spr.position.copy(position);
+  scene.add(spr);
+  return spr;
+}
+addAxisLabel('X', new THREE.Vector3(85, 0, 0), '#ff5555');
+addAxisLabel('Y', new THREE.Vector3(0, 85, 0), '#55ff55');
+addAxisLabel('Z', new THREE.Vector3(0, 0, 85), '#5599ff');
+
+// ========== 方向ラベル (FRONT/BACK/LEFT/RIGHT/TOP/BOTTOM) ==========
+let directionLabels = [];
+let showDirectionLabels = true;
+
+function makeDirectionSprite(text, color) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 80;
+  const ctx = c.getContext('2d');
+  // 背景
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+  ctx.fillRect(0, 0, 256, 80);
+  // 上部にカラー帯
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 256, 8);
+  ctx.fillRect(0, 72, 256, 8);
+  // テキスト
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 36px -apple-system, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 44);
+  const tex = new THREE.CanvasTexture(c);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  spr.scale.set(24, 7.5, 1);
+  return spr;
+}
+
+function updateDirectionLabels() {
+  // 既存ラベルを削除
+  directionLabels.forEach(l => scene.remove(l));
+  directionLabels = [];
+  if (!modelBBox || !showDirectionLabels) return;
+
+  const min = modelBBox.min;
+  const max = modelBBox.max;
+  const c = modelCenter;
+  const offset = Math.max(modelSize.x, modelSize.y, modelSize.z) * 0.35;
+
+  // このビューアの軸方向定義（Z-up / 右手系）:
+  //   X-: FRONT (手前)
+  //   X+: BACK (奥)
+  //   Y+: RIGHT
+  //   Y-: LEFT
+  //   Z+: TOP
+  //   Z-: BOTTOM
+  const labels = [
+    { text: 'FRONT 前',  color: '#22c55e', pos: new THREE.Vector3(min.x - offset, c.y, c.z) },
+    { text: 'BACK 後',   color: '#dc2626', pos: new THREE.Vector3(max.x + offset, c.y, c.z) },
+    { text: 'RIGHT 右',  color: '#3b82f6', pos: new THREE.Vector3(c.x, max.y + offset, c.z) },
+    { text: 'LEFT 左',   color: '#a855f7', pos: new THREE.Vector3(c.x, min.y - offset, c.z) },
+    { text: 'TOP 上',    color: '#f59e0b', pos: new THREE.Vector3(c.x, c.y, max.z + offset * 0.6) },
+    { text: 'BOTTOM 下', color: '#94a3b8', pos: new THREE.Vector3(c.x, c.y, min.z - offset * 0.6) },
+  ];
+
+  labels.forEach(l => {
+    const sprite = makeDirectionSprite(l.text, l.color);
+    sprite.position.copy(l.pos);
+    scene.add(sprite);
+    directionLabels.push(sprite);
+  });
+}
+
+// ========== コントロール (ピュアターンテーブル + Shift で一時フリー回転) ==========
+const controls = new OrbitControls(camera, canvas);
+
+// 🔑 Z軸を常に「上」に固定
+camera.up.set(0, 0, 1);
+
+// 慣性切る
+controls.enableDamping = false;
+
+// 感度
+controls.rotateSpeed = 1.0;
+controls.zoomSpeed = 0.8;
+controls.panSpeed = 0.8;
+
+// パン
+controls.screenSpacePanning = true;
+
+// マウスボタン
+controls.mouseButtons = {
+  LEFT: THREE.MOUSE.ROTATE,
+  MIDDLE: THREE.MOUSE.PAN,
+  RIGHT: null,
+};
+
+controls.touches = {
+  ONE: THREE.TOUCH.ROTATE,
+  TWO: THREE.TOUCH.DOLLY_PAN,
+};
+
+// ズーム制限
+controls.minDistance = 10;
+controls.maxDistance = 1000;
+
+// 🔑 OrbitControls の rotate を無効化、独自実装に置き換え (Pointer Lock 対応)
+controls.mouseButtons.LEFT = null;
+controls.enableRotate = false;
+
+// camera.up を Z+ に強制
+function enforceZup() {
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  const horizontalDist = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
+  // 真上・真下視点でなければ Z+ 固定
+  if (horizontalDist > 0.5) {
+    camera.up.set(0, 0, 1);
+  }
+}
+
+// ========== 独自ドラッグハンドラ (Pointer Lock 対応で無限回転) ==========
+let isDragging = false;
+let dragShiftMode = false;  // shift+ドラッグ中?
+
+const ROTATE_SENSITIVITY = 0.006;
+
+function rotateAzimuth(angle) {
+  // モデル中心を軸に Z軸周り回転 (azimuth)
+  const offset = camera.position.clone().sub(controls.target);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const x = offset.x * cos - offset.y * sin;
+  const y = offset.x * sin + offset.y * cos;
+  offset.x = x;
+  offset.y = y;
+  camera.position.copy(offset).add(controls.target);
+  enforceZup();
+  controls.update();
+}
+
+function rotatePolar(angle) {
+  // 仰角を変える (現在の方向ベクトルを XY 軸に対して回転)
+  const offset = camera.position.clone().sub(controls.target);
+  const r = offset.length();
+  // 現在の azimuth (XY 平面での角度)
+  const azim = Math.atan2(offset.y, offset.x);
+  // 現在の polar (Z 軸からの角度)
+  let polar = Math.acos(offset.z / r);
+  polar += angle;
+  // ジンバルロック防止
+  polar = Math.max(0.05, Math.min(Math.PI - 0.05, polar));
+  // 新しい位置
+  offset.x = r * Math.sin(polar) * Math.cos(azim);
+  offset.y = r * Math.sin(polar) * Math.sin(azim);
+  offset.z = r * Math.cos(polar);
+  camera.position.copy(offset).add(controls.target);
+  enforceZup();
+  controls.update();
+}
+
+// 左マウスダウン → ドラッグ開始 + Pointer Lock
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;       // 左ボタンのみ
+  if (measureMode) return;          // 測定モード時は OrbitControls に任せない、別実装あり
+  // 注: 右クリック (button=2) は注釈用、middle (button=1) はパン用
+  isDragging = true;
+  dragShiftMode = e.shiftKey;
+  canvas.requestPointerLock?.();  // ブラウザサポートあれば
+  canvas.style.cursor = 'grabbing';
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (!isDragging) return;
+  isDragging = false;
+  dragShiftMode = false;
+  document.exitPointerLock?.();
+  canvas.style.cursor = 'default';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  // PointerLock 中は movementX/Y を使う、それ以外も使える
+  const dx = e.movementX || 0;
+  const dy = e.movementY || 0;
+
+  // フリー回転: X → azimuth (横), Y → polar (縦)
+  rotateAzimuth(-dx * ROTATE_SENSITIVITY);
+  rotatePolar(-dy * ROTATE_SENSITIVITY);
+});
+
+// Pointer Lock 解除イベント (Esc などで離れた時)
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement !== canvas) {
+    isDragging = false;
+    dragShiftMode = false;
+    canvas.style.cursor = 'default';
+  }
+});
+
+// shift キーは状態管理だけ (Pointer Lock 中も切り替え可能)
+let shiftHeld = false;
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Shift') shiftHeld = true;
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'Shift') shiftHeld = false;
+});
+
+// 操作モード (trackpad / mouse)
+let controlMode = 'trackpad';
+
+// トラックパッドの2本指スクロールを賢く処理
+// macOS: 2本指スワイプ = wheel event (deltaY/X), ピンチ = wheel event with ctrlKey
+function handleWheel(e) {
+  if (controlMode !== 'trackpad') return; // マウスモードはデフォルトに任せる
+  e.preventDefault();
+  e.stopImmediatePropagation();
+
+  if (e.ctrlKey) {
+    // macOS ピンチジェスチャー = ズーム (ctrlKey が立つ)
+    const factor = Math.exp(e.deltaY * 0.01);
+    const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+    dir.multiplyScalar(factor);
+    camera.position.copy(controls.target).add(dir);
+  } else if (e.shiftKey) {
+    // shift+スクロール = パン (任意)
+    panBy(e.deltaX * 0.5, e.deltaY * 0.5);
+  } else {
+    // 通常の2本指スクロール = パン (トラックパッド前提)
+    panBy(e.deltaX * 0.5, e.deltaY * 0.5);
+  }
+  controls.update();
+}
+
+function panBy(dx, dy) {
+  const offset = new THREE.Vector3();
+  offset.copy(camera.position).sub(controls.target);
+  const targetDistance = offset.length();
+  // screen-space pan
+  const right = new THREE.Vector3();
+  right.setFromMatrixColumn(camera.matrix, 0);
+  right.multiplyScalar(-dx * targetDistance / canvas.clientHeight);
+  const up = new THREE.Vector3();
+  up.setFromMatrixColumn(camera.matrix, 1);
+  up.multiplyScalar(dy * targetDistance / canvas.clientHeight);
+  controls.target.add(right).add(up);
+  camera.position.add(right).add(up);
+}
+
+// wheel イベントを capture モードで奪う
+canvas.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+
+// 操作モード切替
+document.getElementById('mode-trackpad').addEventListener('click', () => {
+  controlMode = 'trackpad';
+  document.getElementById('mode-trackpad').classList.add('active');
+  document.getElementById('mode-mouse').classList.remove('active');
+  showToast('🖱️ トラックパッドモード: 2本指スワイプ=パン / ピンチ=ズーム / ドラッグ=回転');
+});
+document.getElementById('mode-mouse').addEventListener('click', () => {
+  controlMode = 'mouse';
+  document.getElementById('mode-mouse').classList.add('active');
+  document.getElementById('mode-trackpad').classList.remove('active');
+  showToast('🖱️ マウスモード: 左ドラッグ=回転 / ホイール=ズーム / 右ドラッグ=パン');
+});
+
+// ========== ViewHelper (右下の立体軸ガジェット) ==========
+const viewHelperContainer = document.getElementById('view-cube-container');
+const viewHelperRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+viewHelperRenderer.setPixelRatio(window.devicePixelRatio);
+viewHelperRenderer.setSize(140, 140);
+viewHelperContainer.appendChild(viewHelperRenderer.domElement);
+
+const viewHelper = new ViewHelper(camera, viewHelperRenderer.domElement);
+viewHelper.controls = controls;
+viewHelper.controls.center = controls.target;
+
+viewHelperContainer.addEventListener('pointerup', (e) => {
+  viewHelper.handleClick(e);
+});
+
+const clock = new THREE.Clock();
+
+// ========== STL 読み込み ==========
+let currentMesh = null;
+let currentEdges = null;
+let modelBBox = null;
+let modelCenter = new THREE.Vector3();
+let modelSize = new THREE.Vector3();
+
+const fileInput = document.getElementById('file-input');
+const fileName = document.getElementById('file-name');
+const fileMtime = document.getElementById('file-mtime');
+const modelSelect = document.getElementById('model-select');
+const loadingEl = document.getElementById('loading');
+
+let showWireframe = false;
+let showEdges = false;
+
+function makeMaterial() {
+  return new THREE.MeshStandardMaterial({
+    color: 0x5a9fd4,
+    metalness: 0.1,
+    roughness: 0.6,
+    flatShading: false,
+    wireframe: showWireframe,
+  });
+}
+
+async function loadSTL(arrayBuffer, name) {
+  loadingEl.classList.add('show');
+  await new Promise(r => setTimeout(r, 10));
+
+  const loader = new STLLoader();
+  const geometry = loader.parse(arrayBuffer);
+  geometry.computeVertexNormals();
+
+  if (currentMesh) scene.remove(currentMesh);
+  if (currentEdges) scene.remove(currentEdges);
+
+  currentMesh = new THREE.Mesh(geometry, makeMaterial());
+  currentMesh.castShadow = true;
+  currentMesh.receiveShadow = true;
+  scene.add(currentMesh);
+
+  // エッジ用 LineSegments (デフォルト hidden)
+  const edgesGeo = new THREE.EdgesGeometry(geometry, 30);
+  currentEdges = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x1a3550, linewidth: 1 }));
+  currentEdges.visible = showEdges;
+  scene.add(currentEdges);
+
+  // bbox
+  geometry.computeBoundingBox();
+  modelBBox = geometry.boundingBox;
+  modelBBox.getCenter(modelCenter);
+  modelBBox.getSize(modelSize);
+  const maxDim = Math.max(modelSize.x, modelSize.y, modelSize.z);
+
+  // クロスセクションスライダーの範囲を更新 (要素が存在する場合のみ)
+  const sl = document.getElementById('cut-slider');
+  if (sl) {
+    sl.min = (modelBBox.min.x - 5).toFixed(0);
+    sl.max = (modelBBox.max.x + 5).toFixed(0);
+  }
+
+  // 方向ラベル更新
+  updateDirectionLabels();
+
+  // カメラリセット
+  applyPreset('iso');
+  fileName.textContent = name;
+  loadingEl.classList.remove('show');
+  showToast(`✅ ${name} 読み込み完了`);
+}
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => loadSTL(ev.target.result, file.name);
+  reader.readAsArrayBuffer(file);
+});
+
+// モデル一覧を取得して dropdown に。
+// 案件非依存（汎用化）: /api/models が全 .stl を「更新時刻が新しい順」で返す。
+// → 最後に生成/コピーした STL が自動ロードされる（どの案件でも同じ挙動）。
+async function loadModelList() {
+  try {
+    const res = await fetch('/api/models');
+    const data = await res.json();
+    const stls = (data && data.ok && Array.isArray(data.models) ? data.models : []).map(m => m.name);
+    modelSelect.innerHTML = '<option value="">— モデル選択 —</option>';
+    stls.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s; modelSelect.appendChild(o);
+    });
+    const empty = document.getElementById('empty-state');
+    if (stls.length === 0) { if (empty) empty.style.display = 'flex'; return; }
+    if (empty) empty.style.display = 'none';
+    modelSelect.value = stls[0];
+    await loadFromUrl('/models/' + stls[0], stls[0]);
+  } catch (e) {
+    console.error('Model list load failed:', e);
+  }
+}
+
+// ファイル更新時刻を取得して表示
+async function updateMtimeDisplay(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    const lastMod = res.headers.get('Last-Modified');
+    if (lastMod) {
+      const d = new Date(lastMod);
+      const fmt = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      fileMtime.textContent = `📅 ${fmt}`;
+    } else {
+      fileMtime.textContent = '📅 --';
+    }
+  } catch (e) {
+    fileMtime.textContent = '📅 --';
+  }
+}
+
+async function loadFromUrl(url, name) {
+  loadingEl.classList.add('show');
+  try {
+    const res = await fetch(url);
+    const buf = await res.arrayBuffer();
+    await loadSTL(buf, name);
+    await updateMtimeDisplay(url);
+  } catch (e) {
+    showToast('❌ 読み込み失敗: ' + e.message, true);
+    loadingEl.classList.remove('show');
+  }
+}
+
+modelSelect.addEventListener('change', (e) => {
+  if (e.target.value) {
+    loadFromUrl('/models/' + e.target.value, e.target.value);
+  }
+});
+
+// ========== カメラプリセット ==========
+function applyPreset(preset) {
+  if (!modelBBox) return;
+  const c = modelCenter;
+  const d = Math.max(modelSize.x, modelSize.y, modelSize.z);
+  let pos;
+  let up = new THREE.Vector3(0, 0, 1);
+
+  switch (preset) {
+    case 'front':    pos = new THREE.Vector3(c.x - d * 2.5, c.y, c.z); break;
+    case 'back':     pos = new THREE.Vector3(c.x + d * 2.5, c.y, c.z); break;
+    case 'right':    pos = new THREE.Vector3(c.x, c.y + d * 2.5, c.z); break;
+    case 'left':     pos = new THREE.Vector3(c.x, c.y - d * 2.5, c.z); break;
+    case 'top':      pos = new THREE.Vector3(c.x + 0.01, c.y, c.z + d * 2.5); up = new THREE.Vector3(1, 0, 0); break;
+    case 'bottom':   pos = new THREE.Vector3(c.x + 0.01, c.y, c.z - d * 2.5); up = new THREE.Vector3(1, 0, 0); break;
+    case 'iso':      pos = new THREE.Vector3(c.x - d * 1.5, c.y - d * 1.5, c.z + d * 1.0); break;
+    case 'iso-rear': pos = new THREE.Vector3(c.x + d * 1.5, c.y + d * 1.5, c.z + d * 1.0); break;
+    case 'reset':
+    default:         pos = new THREE.Vector3(c.x - d * 1.5, c.y - d * 1.5, c.z + d * 1.0);
+  }
+  camera.position.copy(pos);
+  camera.up.copy(up);
+  controls.target.copy(c);
+  controls.update();
+}
+
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    applyPreset(btn.dataset.preset);
+    // 視覚フィードバック
+    btn.style.transform = 'scale(0.92)';
+    setTimeout(() => { btn.style.transform = ''; }, 120);
+  });
+});
+
+// ========== ワイヤー / エッジ切り替え ==========
+document.getElementById('toggle-wireframe').addEventListener('click', (e) => {
+  showWireframe = !showWireframe;
+  e.currentTarget.classList.toggle('active', showWireframe);
+  if (currentMesh) currentMesh.material.wireframe = showWireframe;
+});
+document.getElementById('toggle-edges').addEventListener('click', (e) => {
+  showEdges = !showEdges;
+  e.currentTarget.classList.toggle('active', showEdges);
+  if (currentEdges) currentEdges.visible = showEdges;
+});
+document.getElementById('toggle-direction').addEventListener('click', (e) => {
+  showDirectionLabels = !showDirectionLabels;
+  e.currentTarget.classList.toggle('active', showDirectionLabels);
+  updateDirectionLabels();
+});
+
+// ========== NavCube (左下の動的立方体) ==========
+const navCubeContainer = document.getElementById('nav-cube-container');
+const navCubeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+navCubeRenderer.setPixelRatio(window.devicePixelRatio);
+navCubeRenderer.setSize(160, 160);
+navCubeContainer.appendChild(navCubeRenderer.domElement);
+
+const navCubeScene = new THREE.Scene();
+const navCubeCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+navCubeCamera.position.set(0, 0, 7);
+
+// ライト
+const navCubeAmbient = new THREE.AmbientLight(0xffffff, 0.6);
+navCubeScene.add(navCubeAmbient);
+const navCubeDir = new THREE.DirectionalLight(0xffffff, 0.7);
+navCubeDir.position.set(5, 5, 5);
+navCubeScene.add(navCubeDir);
+
+// 6面ラベル付き立方体
+// BoxGeometry の面の順番: +X, -X, +Y, -Y, +Z, -Z
+// 軸定義（Z-up / 右手系）:
+//   +X = BACK / -X = FRONT
+//   +Y = RIGHT / -Y = LEFT
+//   +Z = TOP / -Z = BOTTOM
+const navFaces = [
+  { name: 'BACK',   color: '#dc2626', normal: new THREE.Vector3(1, 0, 0) },
+  { name: 'FRONT',  color: '#22c55e', normal: new THREE.Vector3(-1, 0, 0) },
+  { name: 'RIGHT',  color: '#3b82f6', normal: new THREE.Vector3(0, 1, 0) },
+  { name: 'LEFT',   color: '#a855f7', normal: new THREE.Vector3(0, -1, 0) },
+  { name: 'TOP',    color: '#f59e0b', normal: new THREE.Vector3(0, 0, 1) },
+  { name: 'BOTTOM', color: '#94a3b8', normal: new THREE.Vector3(0, 0, -1) },
+];
+
+function makeNavFaceTexture(name, color) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  // ベース色
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 256, 256);
+  // 内側に少し暗い領域
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.fillRect(20, 20, 216, 216);
+  // 枠
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, 252, 252);
+  // テキスト
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 56px -apple-system, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(name, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+const navCubeMaterials = navFaces.map(f =>
+  new THREE.MeshLambertMaterial({ map: makeNavFaceTexture(f.name, f.color) })
+);
+const navCube = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), navCubeMaterials);
+navCubeScene.add(navCube);
+
+// クリックで対応する面の方向に視点を切替
+const navRaycaster = new THREE.Raycaster();
+const navMouse = new THREE.Vector2();
+navCubeRenderer.domElement.addEventListener('click', (e) => {
+  const rect = navCubeRenderer.domElement.getBoundingClientRect();
+  navMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  navMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  navRaycaster.setFromCamera(navMouse, navCubeCamera);
+  const intersects = navRaycaster.intersectObject(navCube);
+  if (intersects.length > 0) {
+    const faceIdx = Math.floor(intersects[0].faceIndex / 2);
+    const face = navFaces[faceIdx];
+    // メインカメラを対応する方向に切替
+    const presetMap = {
+      'FRONT': 'front', 'BACK': 'back',
+      'RIGHT': 'right', 'LEFT': 'left',
+      'TOP': 'top', 'BOTTOM': 'bottom',
+    };
+    applyPreset(presetMap[face.name]);
+    showToast(`📦 ${face.name} 視点に移動`);
+  }
+});
+
+// ========== アノテーション ==========
+const annotations = [];
+let nextId = 1;
+let currentColor = '#dc2626';
+
+const colors = [
+  { name: '赤 (削る)',   hex: '#dc2626', threeHex: 0xdc2626 },
+  { name: '緑 (追加)',   hex: '#16a34a', threeHex: 0x16a34a },
+  { name: '青 (測定)',   hex: '#2563eb', threeHex: 0x2563eb },
+  { name: '黄 (注意)',   hex: '#eab308', threeHex: 0xeab308 },
+  { name: '紫 (相談)',   hex: '#9333ea', threeHex: 0x9333ea },
+];
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const annotationList = document.getElementById('annotation-list');
+const annCount = document.getElementById('ann-count');
+const statusEl = document.getElementById('status');
+
+function makeMarker(position, id, hex) {
+  const group = new THREE.Group();
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(2.5, 16, 16),
+    new THREE.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 0.5 })
+  );
+  group.add(sphere);
+
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(64, 64, 60, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#' + hex.toString(16).padStart(6, '0');
+  ctx.font = 'bold 80px -apple-system';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(id, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  spr.scale.set(7, 7, 1);
+  spr.position.set(0, 0, 4);
+  group.add(spr);
+
+  group.position.copy(position);
+  return group;
+}
+
+function addAnnotation(position, normal) {
+  const ann = {
+    id: nextId++,
+    x: parseFloat(position.x.toFixed(2)),
+    y: parseFloat(position.y.toFixed(2)),
+    z: parseFloat(position.z.toFixed(2)),
+    nx: normal ? parseFloat(normal.x.toFixed(3)) : 0,
+    ny: normal ? parseFloat(normal.y.toFixed(3)) : 0,
+    nz: normal ? parseFloat(normal.z.toFixed(3)) : 0,
+    color: currentColor,
+    comment: '',
+  };
+  const colorInfo = colors.find(c => c.hex === currentColor);
+  const marker = makeMarker(position, ann.id, colorInfo.threeHex);
+  scene.add(marker);
+  ann.marker = marker;
+  annotations.push(ann);
+  renderAnnotationList();
+  showToast(`✅ 注釈 #${ann.id} 追加 (X=${ann.x}, Y=${ann.y}, Z=${ann.z})`);
+}
+
+function removeAnnotation(id) {
+  const idx = annotations.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  scene.remove(annotations[idx].marker);
+  annotations.splice(idx, 1);
+  renderAnnotationList();
+}
+
+function renderAnnotationList() {
+  annotationList.innerHTML = '';
+  annCount.textContent = annotations.length;
+  annotations.forEach(ann => {
+    const card = document.createElement('div');
+    card.className = 'annotation-card';
+    card.style.borderLeftColor = ann.color;
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="ann-id" style="color: ${ann.color}">#${ann.id}</span>
+        <button class="delete-btn" data-id="${ann.id}">×</button>
+      </div>
+      <div class="ann-coords">X=${ann.x} Y=${ann.y} Z=${ann.z}</div>
+      <textarea class="ann-comment" data-id="${ann.id}" placeholder="意図を記入...">${ann.comment}</textarea>
+      <div class="ann-color-row">
+        ${colors.map(c => `<div class="ann-color ${ann.color === c.hex ? 'selected' : ''}"
+          style="background: ${c.hex}" data-id="${ann.id}" data-color="${c.hex}" title="${c.name}"></div>`).join('')}
+      </div>
+    `;
+    annotationList.appendChild(card);
+  });
+
+  annotationList.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => removeAnnotation(parseInt(btn.dataset.id)));
+  });
+  annotationList.querySelectorAll('.ann-comment').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const ann = annotations.find(a => a.id === parseInt(ta.dataset.id));
+      if (ann) ann.comment = ta.value;
+    });
+  });
+  annotationList.querySelectorAll('.ann-color').forEach(el => {
+    el.addEventListener('click', () => {
+      const ann = annotations.find(a => a.id === parseInt(el.dataset.id));
+      if (ann) {
+        ann.color = el.dataset.color;
+        currentColor = el.dataset.color;
+        const colorInfo = colors.find(c => c.hex === ann.color);
+        scene.remove(ann.marker);
+        ann.marker = makeMarker(ann.marker.position, ann.id, colorInfo.threeHex);
+        scene.add(ann.marker);
+        renderAnnotationList();
+      }
+    });
+  });
+}
+
+// ========== モード表示 ==========
+const modeIndicator = document.getElementById('mode-indicator');
+
+// ========== 距離測定モード ==========
+let measureMode = false;
+let measurePoints = [];
+const measurements = [];
+const measurementGfx = [];
+const measurementList = document.getElementById('measurement-list');
+const measCount = document.getElementById('meas-count');
+
+document.getElementById('measure-btn').addEventListener('click', toggleMeasureMode);
+
+function toggleMeasureMode() {
+  measureMode = !measureMode;
+  measurePoints = [];
+  document.getElementById('measure-btn').classList.toggle('active', measureMode);
+  if (measureMode) {
+    modeIndicator.textContent = '📏 測定モード - 2点を左クリックで距離計測 (Esc で解除)';
+    modeIndicator.classList.add('show');
+    canvas.style.cursor = 'crosshair';
+    showToast('📏 測定モード ON: 2点を左クリック');
+  } else {
+    modeIndicator.classList.remove('show');
+    canvas.style.cursor = 'default';
+  }
+}
+
+function addMeasurement(p1, p2) {
+  const dist = p1.distanceTo(p2);
+  const m = {
+    id: measurements.length + 1,
+    p1: { x: parseFloat(p1.x.toFixed(2)), y: parseFloat(p1.y.toFixed(2)), z: parseFloat(p1.z.toFixed(2)) },
+    p2: { x: parseFloat(p2.x.toFixed(2)), y: parseFloat(p2.y.toFixed(2)), z: parseFloat(p2.z.toFixed(2)) },
+    distance_mm: parseFloat(dist.toFixed(2)),
+  };
+  measurements.push(m);
+
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffff00 }));
+  scene.add(line);
+  measurementGfx.push(line);
+
+  // 各端点に小さい黄色球
+  [p1, p2].forEach(p => {
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1.2, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffff00 })
+    );
+    sphere.position.copy(p);
+    scene.add(sphere);
+    measurementGfx.push(sphere);
+  });
+
+  // 中点ラベル
+  const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+  const c = document.createElement('canvas');
+  c.width = 200; c.height = 50;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+  ctx.fillRect(0, 0, 200, 50);
+  ctx.fillStyle = '#ffff00';
+  ctx.font = 'bold 28px -apple-system';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${dist.toFixed(2)} mm`, 100, 25);
+  const tex = new THREE.CanvasTexture(c);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  spr.scale.set(20, 5, 1);
+  spr.position.copy(mid);
+  scene.add(spr);
+  measurementGfx.push(spr);
+
+  renderMeasurementList();
+  showToast(`📏 距離: ${dist.toFixed(2)} mm`);
+}
+
+function renderMeasurementList() {
+  measurementList.innerHTML = '';
+  measCount.textContent = measurements.length;
+  measurements.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'annotation-card';
+    card.style.borderLeftColor = '#eab308';
+    card.innerHTML = `
+      <div><span class="ann-id" style="color: #eab308">📏 #${m.id}</span></div>
+      <div class="ann-coords">P1: X=${m.p1.x} Y=${m.p1.y} Z=${m.p1.z}</div>
+      <div class="ann-coords">P2: X=${m.p2.x} Y=${m.p2.y} Z=${m.p2.z}</div>
+      <div style="font-weight: bold; color: #eab308; margin-top: 4px;">距離: ${m.distance_mm} mm</div>
+    `;
+    measurementList.appendChild(card);
+  });
+}
+
+// 共通ヘルパ: クリック位置から hit を取得
+function pickFromEvent(e) {
+  if (!currentMesh) return null;
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(currentMesh);
+  return intersects.length > 0 ? intersects[0] : null;
+}
+
+// 左クリック: 測定モードのみ反応 (通常はドラッグで回転)
+canvas.addEventListener('click', (e) => {
+  if (!measureMode) return;
+  const hit = pickFromEvent(e);
+  if (!hit) return;
+  measurePoints.push(hit.point.clone());
+  if (measurePoints.length === 2) {
+    addMeasurement(measurePoints[0], measurePoints[1]);
+    measurePoints = [];
+  } else {
+    showToast(`📏 点1取得 → もう1点クリック`);
+  }
+});
+
+// 右クリック: 注釈追加 (Bambu Studio 風)
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();  // ブラウザのコンテキストメニュー抑制
+  const hit = pickFromEvent(e);
+  if (!hit) return;
+
+  if (e.shiftKey) {
+    // shift+右クリック = 最寄り注釈削除
+    let nearestId = null, nearestDist = Infinity;
+    annotations.forEach(a => {
+      const d = a.marker.position.distanceTo(hit.point);
+      if (d < nearestDist && d < 5) { nearestDist = d; nearestId = a.id; }
+    });
+    if (nearestId !== null) removeAnnotation(nearestId);
+  } else {
+    addAnnotation(hit.point.clone(), hit.face?.normal || null);
+  }
+});
+
+// ダブルクリック: 回転中心をその点に移動
+canvas.addEventListener('dblclick', (e) => {
+  const hit = pickFromEvent(e);
+  if (!hit) return;
+  controls.target.copy(hit.point);
+  controls.update();
+  showToast(`🎯 回転中心を移動 (X=${hit.point.x.toFixed(1)}, Y=${hit.point.y.toFixed(1)}, Z=${hit.point.z.toFixed(1)})`);
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!currentMesh) return;
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(currentMesh);
+  if (intersects.length > 0) {
+    const p = intersects[0].point;
+    statusEl.textContent = `座標: X=${p.x.toFixed(1)} / Y=${p.y.toFixed(1)} / Z=${p.z.toFixed(1)}`;
+  } else {
+    statusEl.textContent = '座標: -- / -- / --';
+  }
+});
+
+// ========== ボタン ==========
+document.getElementById('clear-annotations').addEventListener('click', () => {
+  if (annotations.length === 0 && measurements.length === 0) return;
+  if (!confirm(`注釈 ${annotations.length} 個 + 測定 ${measurements.length} 個を全部削除しますか?`)) return;
+  annotations.forEach(a => scene.remove(a.marker));
+  annotations.length = 0; nextId = 1;
+  measurementGfx.forEach(g => scene.remove(g));
+  measurementGfx.length = 0;
+  measurements.length = 0;
+  renderAnnotationList();
+  renderMeasurementList();
+  showToast('🗑️ 全削除');
+});
+
+// ========== Claude 連携の保存ロジック ==========
+async function saveAnnotations() {
+  const exportData = {
+    timestamp: new Date().toISOString(),
+    file: fileName.textContent,
+    camera_position: {
+      x: parseFloat(camera.position.x.toFixed(2)),
+      y: parseFloat(camera.position.y.toFixed(2)),
+      z: parseFloat(camera.position.z.toFixed(2)),
+      target_x: parseFloat(controls.target.x.toFixed(2)),
+      target_y: parseFloat(controls.target.y.toFixed(2)),
+      target_z: parseFloat(controls.target.z.toFixed(2)),
+    },
+    annotations: annotations.map(a => ({
+      id: a.id,
+      coords: { x: a.x, y: a.y, z: a.z },
+      normal: { x: a.nx, y: a.ny, z: a.nz },
+      color: a.color,
+      color_meaning: colors.find(c => c.hex === a.color)?.name || a.color,
+      comment: a.comment,
+    })),
+    measurements: measurements,
+  };
+  const json = JSON.stringify(exportData, null, 2);
+  const claudeStatus = document.getElementById('claude-status-text');
+
+  // 1. ローカルダウンロード (バックアップ)
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const baseName = (fileName.textContent || 'annotations').replace(/\.stl$/i, '');
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  a.download = `${baseName}_annotations_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // 2. サーバー POST で Claude 共有パスに保存
+  try {
+    claudeStatus.textContent = '⏳ Claude に送信中...';
+    claudeStatus.style.color = '#9ca3af';
+    const res = await fetch('/save_picks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: json,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      claudeStatus.innerHTML = `✅ Claude 共有完了<br><code style="font-size: 10px;">${data.path}</code>`;
+      claudeStatus.style.color = '#22c55e';
+      showToast(`💾 保存完了: ダウンロード + Claude 共有 (${annotations.length} 注釈)`);
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    claudeStatus.textContent = `⚠️ Claude 共有失敗 (${err.message}): ローカルのみ保存`;
+    claudeStatus.style.color = '#f59e0b';
+    showToast(`⚠️ Claude 共有失敗、ローカルダウンロードのみ`);
+  }
+}
+
+document.getElementById('export-json').addEventListener('click', saveAnnotations);
+
+// スクリーンショット
+document.getElementById('screenshot-btn').addEventListener('click', () => {
+  // 現在のフレームをレンダリング
+  renderer.render(scene, camera);
+  const dataURL = renderer.domElement.toDataURL('image/png');
+  const a = document.createElement('a');
+  const baseName = (fileName.textContent || 'screenshot').replace(/\.stl$/i, '');
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  a.download = `${baseName}_screenshot_${ts}.png`;
+  a.href = dataURL;
+  a.click();
+  showToast(`📸 スクショ保存: ${a.download}`);
+});
+
+// ========== キーボードショートカット ==========
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  switch (e.key.toLowerCase()) {
+    case '1': applyPreset('front'); break;
+    case '2': applyPreset('back'); break;
+    case '3': applyPreset('right'); break;
+    case '4': applyPreset('left'); break;
+    case '5': applyPreset('top'); break;
+    case '6': applyPreset('bottom'); break;
+    case '7': applyPreset('iso'); break;
+    case '8': applyPreset('iso-rear'); break;
+    case '9': applyPreset('reset'); break;
+    case 'w':
+      showWireframe = !showWireframe;
+      document.getElementById('toggle-wireframe').classList.toggle('active', showWireframe);
+      if (currentMesh) currentMesh.material.wireframe = showWireframe;
+      break;
+    case 'e':
+      showEdges = !showEdges;
+      document.getElementById('toggle-edges').classList.toggle('active', showEdges);
+      if (currentEdges) currentEdges.visible = showEdges;
+      break;
+    case 'r':
+      // 回転中心をモデル中心に戻す
+      if (modelCenter) {
+        controls.target.copy(modelCenter);
+        controls.update();
+        showToast('🎯 回転中心をモデル中心にリセット');
+      }
+      break;
+    case 'm':
+      toggleMeasureMode();
+      break;
+    case 'escape':
+      if (measureMode) toggleMeasureMode();
+      break;
+    case 's':
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        document.getElementById('export-json').click();
+      }
+      break;
+  }
+});
+
+// ========== トースト ==========
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function showToast(msg, isError = false) {
+  toastEl.textContent = msg;
+  toastEl.style.background = isError ? 'rgba(220, 38, 38, 0.95)' : 'rgba(22, 163, 74, 0.95)';
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2500);
+}
+
+// ========== レンダーループ ==========
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (viewHelper.animating) viewHelper.update(delta);
+
+  controls.update();
+  renderer.render(scene, camera);
+
+  // ViewHelper (右下、軸ガジェット)
+  viewHelperRenderer.clear();
+  viewHelper.render(viewHelperRenderer);
+
+  // NavCube (左下、動的な立方体): メインカメラの方向に同期
+  if (navCube) {
+    const dir = new THREE.Vector3();
+    dir.subVectors(camera.position, controls.target).normalize();
+    navCubeCamera.position.copy(dir.multiplyScalar(7));
+    navCubeCamera.up.copy(camera.up);
+    navCubeCamera.lookAt(0, 0, 0);
+    navCubeRenderer.render(navCubeScene, navCubeCamera);
+  }
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// 自動ロード
+loadModelList();
+
+// ワークスペース名を表示
+fetch('/api/workspace').then(r => r.json()).then(w => {
+  if (w && w.ok) {
+    const el = document.getElementById('ws-title');
+    if (el) el.textContent = '案件: ' + w.title;
+  }
+});
+
+
+</script>
+<div id="onboard" style="display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:50;">
+  <div style="background:#1f2630;color:#e6e6e6;max-width:380px;padding:22px;
+    border-radius:12px;font-size:14px;line-height:1.7;">
+    <b style="color:#7fd1ff;">3D Model Review へようこそ</b>
+    <ol style="padding-left:18px;margin:12px 0;">
+      <li>モデルを<strong>右クリック</strong>して気になる箇所に注釈</li>
+      <li><strong>「Claude へ送る」</strong>を押す</li>
+      <li>Claude Code で <strong>「注釈読んで」</strong>と言うだけ</li>
+    </ol>
+    <button id="onboard-ok" style="width:100%;padding:8px;border:0;
+      border-radius:8px;background:#2f6df0;color:#fff;cursor:pointer;">
+      わかった</button>
+  </div>
+</div>
+<script>
+ (function(){
+   if(!localStorage.getItem('tmr_onboarded')){
+     var o=document.getElementById('onboard'); if(o)o.style.display='flex';
+   }
+   var b=document.getElementById('onboard-ok');
+   if(b)b.onclick=function(){
+     localStorage.setItem('tmr_onboarded','1');
+     document.getElementById('onboard').style.display='none';
+   };
+ })();
+</script>
+</body>
+</html>

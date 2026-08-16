@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# 3D artifacts（ワークスペース側に置く。リポジトリには入れない）
+*.stl
+*.step
+*.stp
+*.3mf
+*.gcode
+
+# OS
+.DS_Store
