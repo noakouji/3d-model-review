@@ -375,7 +375,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// ライト (4ライト構成: flowful-ai/cad-skill 方式)
+// ライト: 4灯構成（上3灯 + 下から起こし1灯）。CADプレビューで面の向きを
+// 見分けやすくする定番の配置。配置と強度はこのビューア用に個別調整している。
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
 
