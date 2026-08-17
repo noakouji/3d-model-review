@@ -1053,12 +1053,14 @@ function renderAnnotationList() {
         <button class="delete-btn" data-id="${ann.id}">×</button>
       </div>
       <div class="ann-coords">X=${ann.x} Y=${ann.y} Z=${ann.z}</div>
-      <textarea class="ann-comment" data-id="${ann.id}" placeholder="意図を記入...">${ann.comment}</textarea>
+      <textarea class="ann-comment" data-id="${ann.id}" placeholder="意図を記入..."></textarea>
       <div class="ann-color-row">
         ${colors.map(c => `<div class="ann-color ${ann.color === c.hex ? 'selected' : ''}"
           style="background: ${c.hex}" data-id="${ann.id}" data-color="${c.hex}" title="${c.name}"></div>`).join('')}
       </div>
     `;
+    // コメントは innerHTML に埋め込まず value で入れる（HTML として解釈させない）
+    card.querySelector('.ann-comment').value = ann.comment || '';
     annotationList.appendChild(card);
   });
 

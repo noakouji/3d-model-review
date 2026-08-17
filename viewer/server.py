@@ -107,8 +107,26 @@ def make_handler(models_dir: Path, ws):
                 return
             return super().do_HEAD()
 
+        def _cross_site(self) -> bool:
+            """他サイトからの書き込み（CSRF）かどうか。
+
+            ビューア自身のリクエストは Origin が付かないか、自分の origin になる。
+            別サイトのページから投げられた場合は必ず別の Origin が付く。
+            Content-Type も application/json に限定しておくと、プリフライトが
+            必要になる分だけ単純リクエストでの偽装が効かなくなる。
+            """
+            origin = self.headers.get("Origin")
+            if origin:
+                host = self.headers.get("Host", "")
+                if origin not in (f"http://{host}", f"https://{host}"):
+                    return True
+            ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            return ctype != "application/json"
+
         def do_POST(self):
             if self.path == "/save_picks":
+                if self._cross_site():
+                    return self._json(403, {"ok": False, "error": "cross-site request rejected"})
                 raw_len = self.headers.get("Content-Length", "0")
                 try:
                     n = int(raw_len)
